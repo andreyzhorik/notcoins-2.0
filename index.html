@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Not Coins 2.0 — Web</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<style>
+  /* ===== compiled CSS (clean modern look) ===== */
+  :root{
+    --bg:#0f1724;
+    --panel:#0b1220;
+    --muted:#9aa4b2;
+    --accent:#7c5cff;
+    --glass: rgba(255,255,255,0.03);
+    --card:#0b1624;
+    --success:#21c07b;
+    --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:linear-gradient(180deg, #061024 0%, #07122a 100%);
+    color:#e6eef8;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    padding:24px;
+    display:flex;
+    gap:24px;
+    align-items:flex-start;
+    justify-content:center;
+    min-height:100vh;
+  }
+
+  .app {
+    width:1100px;
+    max-width:calc(100% - 48px);
+    display:grid;
+    grid-template-columns: 1fr 360px;
+    gap:20px;
+    align-items:start;
+  }
+
+  .card {
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:14px;
+    padding:16px;
+    box-shadow: 0 6px 24px rgba(3,6,12,0.6);
+    border:1px solid rgba(255,255,255,0.03);
+  }
+
+  /* Left area (game) */
+  .game-area {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .stage {
+    background: linear-gradient(180deg,#081024,#02121b);
+    border-radius:10px;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    align-items:center;
+  }
+
+  #gameCanvas {
+    background: linear-gradient(180deg,#0b1b2b,#03121a);
+    border-radius:8px;
+    width:100%;
+    height:520px;
+    max-height:60vh;
+    box-shadow: inset 0 -6px 20px rgba(0,0,0,0.6);
+    display:block;
+  }
+
+  .controls {
+    display:flex;
+    gap:8px;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .controls .left, .controls .right {display:flex; gap:8px; align-items:center;}
+
+  button.btn {
+    background:linear-gradient(180deg,var(--accent), #5b46d9);
+    color:white;
+    border:none;
+    padding:8px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+    box-shadow: 0 6px 18px rgba(90,64,200,0.24);
+  }
+  button.ghost {
+    background:transparent;
+    color:var(--muted);
+    border:1px solid rgba(255,255,255,0.03);
+  }
+  .stat {
+    background:var(--glass);
+    color:var(--muted);
+    border-radius:8px;
+    padding:8px 10px;
+    font-weight:700;
+    min-width:78px;
+    text-align:center;
+  }
+
+  /* Right panel (leaderboard + player) */
+  .sidebar {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .player-panel {
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  label{font-size:13px;color:var(--muted)}
+  input[name="playerName"] {
+    padding:10px;
+    border-radius:8px;
+    border:1px solid rgba(255,255,255,0.04);
+    background:transparent;
+    color:inherit;
+    outline:none;
+    font-weight:600;
+  }
+
+  .lead-list {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .lead-item {
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:center;
+    padding:8px;
+    border-radius:8px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+    border:1px solid rgba(255,255,255,0.02);
+  }
+  .lead-item .name { font-weight:700; }
+  .lead-item .score { font-weight:900; color:var(--accent) }
+
+  .msg { font-size:13px; color:var(--muted) }
+
+  .small { font-size:13px; color:var(--muted) }
+
+  footer.tip {
+    margin-top:6px;
+    color:var(--muted);
+    font-size:12px;
+    text-align:center;
+  }
+
+  /* responsive */
+  @media (max-width:980px){
+    .app { grid-template-columns: 1fr; }
+    #gameCanvas{height:60vh}
+  }
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Not Coins 2.0 game">
+    <!-- LEFT: GAME -->
+    <div class="card game-area" aria-hidden="false">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h2 style="margin:0 0 6px 0;font-size:18px">Not Coins 2.0</h2>
+          <div class="small">Collect coins, avoid hazards. Arrow keys / touch to move.</div>
+        </div>
+        <div style="text-align:right;color:var(--muted);font-weight:700">v1 — Web build</div>
+      </div>
+
+      <div class="stage card" style="padding:12px;">
+        <canvas id="gameCanvas" width="800" height="520"></canvas>
+
+        <div class="controls" aria-hidden="false">
+          <div class="left">
+            <div class="stat">Score <div id="score" style="font-size:18px;color:#fff">0</div></div>
+            <div class="stat">Lives <div id="lives" style="font-size:18px;color:#fff">3</div></div>
+            <div class="stat">Level <div id="level" style="font-size:18px;color:#fff">1</div></div>
+          </div>
+          <div class="right">
+            <button id="pauseBtn" class="btn ghost">Pause</button>
+            <button id="restartBtn" class="btn">Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+        <div class="small">Controls: ← → ↑ ↓ / WASD or touch left/right and tap to jump. Collect yellow coins!</div>
+        <div class="small">Game ends if lives reach 0 — score will be submitted to leaderboard.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: SIDEBAR -->
+    <div class="card sidebar" role="complementary">
+      <div class="player-panel">
+        <label for="playerName">Player name (saved once)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="playerName" name="playerName" placeholder="Your name" aria-label="Player name input" />
+          <button id="saveNameBtn" class="btn">Save</button>
+        </div>
+        <div id="nameHelp" class="msg"></div>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 8px 0">Leaderboard</h3>
+        <div id="leaderboard" class="lead-list" aria-live="polite">
+          <div class="msg">Loading leaderboard…</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button id="refreshBtn" class="btn ghost">Refresh</button>
+          <button id="showAllBtn" class="btn ghost">Show All</button>
+        </div>
+      </div>
+
+      <div style="margin-top:auto">
+        <div class="msg" id="networkMsg"></div>
+        <footer class="tip">Leaderboard powered by MockAPI — data is public and resettable.</footer>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ===== Not Coins 2.0 — Single-file implementation =====
+   Features:
+   - Canvas game: move a player to collect coins, avoid hazards
+   - Score, Lives, Levels
+   - Player name stored in localStorage and locked
+   - Leaderboard integration with mockapi (GET, POST, PUT)
+   - Desktop + mobile friendly
+*/
+
+/* =================== Configuration =================== */
+const API_BASE = 'https://68f3dd3efd14a9fcc42a1184.mockapi.io/notcoins';
+const MAX_LEAD_DISPLAY = 10;
+
+/* =================== UI bindings =================== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const levelEl = document.getElementById('level');
+
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+const playerNameInput = document.getElementById('playerName');
+const saveNameBtn = document.getElementById('saveNameBtn');
+const nameHelp = document.getElementById('nameHelp');
+
+const refreshBtn = document.getElementById('refreshBtn');
+const showAllBtn = document.getElementById('showAllBtn');
+const leaderboardEl = document.getElementById('leaderboard');
+const networkMsg = document.getElementById('networkMsg');
+
+/* =================== Game state =================== */
+let game = {
+  running: true,
+  paused: false,
+  score: 0,
+  lives: 3,
+  level: 1,
+  player: null,
+  coins: [],
+  hazards: [],
+  lastSpawn: 0,
+  spawnInterval: 1100,
+  lastTime: performance.now(),
+  gravity: 0.9,
+  speedMultiplier: 1,
+};
+
+/* Canvas size adapt */
+function fitCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  // keep internal size matching CSS for crisp draws
+  canvas.width = Math.max(480, Math.floor(rect.width));
+  canvas.height = Math.max(320, Math.floor(rect.height));
+}
+fitCanvas();
+window.addEventListener('resize', ()=>{ fitCanvas(); });
+
+/* =================== Player entity =================== */
+function createPlayer() {
+  return {
+    x: canvas.width/2 - 18,
+    y: canvas.height - 80,
+    w: 36,
+    h: 48,
+    vx: 0,
+    vy: 0,
+    speed: 4,
+    onGround: false,
+    color: '#47a7ff'
+  };
+}
+
+/* =================== Helpers =================== */
+function rand(min, max){ return Math.random()*(max-min)+min; }
+function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
+function rectsOverlap(a,b){
+  return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y+b.h);
+}
+
+/* =================== Spawn coins / hazards =================== */
+function spawnCoin() {
+  const size = rand(12, 20);
+  const coin = {
+    x: rand(20, canvas.width-20-size),
+    y: rand(20, canvas.height/2),
+    r: size/2,
+    wobble: Math.random()*Math.PI*2,
+    value: 1 + Math.floor(game.level/2)
+  };
+  game.coins.push(coin);
+}
+
+function spawnHazard() {
+  const w = rand(22, 38), h = rand(14, 26);
+  const hazard = {
+    x: rand(0, canvas.width - w),
+    y: -h,
+    w, h,
+    vy: rand(1.6, 3.2) + game.level*0.2,
+    color: '#ff7b7b'
+  };
+  game.hazards.push(hazard);
+}
+
+/* =================== Game logic update =================== */
+function resetGame(full=true) {
+  game.score = 0;
+  game.lives = 3;
+  game.level = 1;
+  game.coins = [];
+  game.hazards = [];
+  game.player = createPlayer();
+  game.lastSpawn = performance.now();
+  game.spawnInterval = 1100;
+  game.running = true;
+  game.paused = false;
+  updateHUD();
+  leaderboardMsg('');
+}
+
+function updateHUD() {
+  scoreEl.textContent = String(game.score);
+  livesEl.textContent = String(game.lives);
+  levelEl.textContent = String(game.level);
+}
+
+function gameOver() {
+  game.running = false;
+  game.paused = true;
+  leaderboardMsg('Game over — submitting score...');
+  submitScoreForPlayer(game.score)
+    .then(()=> { leaderboardMsg('Score submitted.'); fetchAndRenderLeaderboard(); })
+    .catch(e => { leaderboardMsg('Unable to submit score.'); console.error(e); });
+}
+
+/* =================== Input =================== */
+const keys = {};
+window.addEventListener('keydown', (e)=>{ keys[e.key.toLowerCase()] = true; if(['arrowup','w',' '].includes(e.key.toLowerCase())) e.preventDefault(); });
+window.addEventListener('keyup', (e)=>{ keys[e.key.toLowerCase()] = false; });
+
+/* Mobile touch: simple left/right control and tap to jump */
+let touchState = { active:false, x:0, startX:0 };
+canvas.addEventListener('touchstart', (e)=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  touchState.active = true; touchState.x = t.clientX; touchState.startX = t.clientX;
+});
+canvas.addEventListener('touchmove', (e)=>{
+  const t = e.touches[0];
+  touchState.x = t.clientX;
+});
+canvas.addEventListener('touchend', (e)=>{
+  const dx = touchState.x - touchState.startX;
+  // tap to jump if small movement
+  if(Math.abs(dx) < 12){
+    keys[' '] = true;
+    setTimeout(()=> keys[' '] = false, 120);
+  }
+  touchState.active=false;
+});
+
+/* =================== Main loop =================== */
+function update(dt) {
+  if(!game.running || game.paused) return;
+
+  // spawn logic
+  if(performance.now() - game.lastSpawn > game.spawnInterval){
+    game.lastSpawn = performance.now();
+    spawnCoin();
+    if(Math.random() < 0.6 + (game.level*0.03)) spawnHazard();
+  }
+
+  // level progression: increase difficulty every 20 coins collected
+  const computedLevel = 1 + Math.floor(game.score / 20);
+  if(computedLevel !== game.level){
+    game.level = computedLevel;
+    game.spawnInterval = Math.max(500, 1100 - (game.level-1)*60);
+  }
+
+  const p = game.player;
+  // input horizontal
+  let move = 0;
+  if(keys['arrowleft'] || keys['a']) move -= 1;
+  if(keys['arrowright'] || keys['d']) move += 1;
+  // touch control: map touch x to left/right
+  if(touchState.active){
+    const rect = canvas.getBoundingClientRect();
+    const cx = touchState.x - rect.left;
+    if(cx < canvas.width*0.45) move = -1;
+    else if(cx > canvas.width*0.55) move = 1;
+  }
+  p.vx = move * (p.speed + game.level*0.12) * (1 + game.speedMultiplier*0.05);
+
+  // jump
+  if((keys['arrowup'] || keys['w'] || keys[' ']) && p.onGround){
+    p.vy = -12 - (game.level*0.6);
+    p.onGround = false;
+  }
+
+  // physics
+  p.vy += game.gravity * 0.6;
+  p.x += p.vx;
+  p.y += p.vy;
+
+  // floor collision
+  if(p.y + p.h >= canvas.height - 8){
+    p.y = canvas.height - 8 - p.h;
+    p.vy = 0;
+    p.onGround = true;
+  } else {
+    p.onGround = false;
+  }
+
+  // bounds
+  p.x = clamp(p.x, 6, canvas.width - p.w - 6);
+
+  // coins wobble and check collisions
+  for(let i = game.coins.length -1; i>=0; i--){
+    const c = game.coins[i];
+    c.wobble += 0.06 + game.level*0.003;
+    // simple bob
+    c.y += Math.sin(c.wobble) * 0.2;
+    // collision
+    const coinBox = { x: c.x, y: c.y, w: c.r*2, h: c.r*2 };
+    if(rectsOverlap(coinBox, p)){
+      game.score += c.value;
+      game.coins.splice(i,1);
+      updateHUD();
+    }
+  }
+
+  // hazards movement
+  for(let i = game.hazards.length -1; i>=0; i--){
+    const h = game.hazards[i];
+    h.y += h.vy;
+    // if off-screen pop
+    if(h.y > canvas.height + 80) game.hazards.splice(i,1);
+
+    if(rectsOverlap(h, p)){
+      // collision: lose a life and clear some hazards
+      game.lives -= 1;
+      game.hazards.splice(i,1);
+      updateHUD();
+      if(game.lives <= 0){ gameOver(); }
+    }
+  }
+}
+
+/* =================== Rendering =================== */
+function draw() {
+  // background
+  ctx.fillStyle = '#031220';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // scenery: subtle ground
+  const groundHeight = 64;
+  ctx.fillStyle = '#052033';
+  ctx.fillRect(0, canvas.height-groundHeight, canvas.width, groundHeight);
+
+  // draw coins
+  for(const c of game.coins){
+    const cx = c.x + c.r;
+    const cy = c.y + c.r;
+    ctx.beginPath();
+    ctx.arc(cx, cy, c.r, 0, Math.PI*2);
+    // radial to add sheen
+    const g = ctx.createRadialGradient(cx - c.r*0.3, cy - c.r*0.3, 2, cx, cy, c.r);
+    g.addColorStop(0, '#fff4a8');
+    g.addColorStop(0.5, '#ffd24d');
+    g.addColorStop(1, '#d5a800');
+    ctx.fillStyle = g;
+    ctx.fill();
+    // shine
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(cx - c.r*0.25, cy - c.r*0.35, c.r*0.45, c.r*0.25, -0.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // draw hazards
+  for(const h of game.hazards){
+    ctx.fillStyle = h.color;
+    ctx.fillRect(h.x, h.y, h.w, h.h);
+    // little shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    ctx.fillRect(h.x, h.y+h.h-6, h.w, 6);
+  }
+
+  // draw player
+  const p = game.player;
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(p.x+4, p.y + p.h - 4, p.w, 6);
+  // body
+  ctx.fillStyle = p.color;
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  // face (two eyes)
+  ctx.fillStyle = '#0b1624';
+  ctx.fillRect(p.x + p.w*0.18, p.y + p.h*0.28, p.w*0.18, p.h*0.18);
+  ctx.fillRect(p.x + p.w*0.62, p.y + p.h*0.28, p.w*0.18, p.h*0.18);
+
+  // HUD overlay (small)
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(8,8,180,52);
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(8,8,180,1);
+}
+
+/* =================== Game loop runner =================== */
+function loop(now){
+  const dt = now - game.lastTime;
+  game.lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+game.player = createPlayer();
+game.lastTime = performance.now();
+resetGame(true);
+requestAnimationFrame(loop);
+
+/* =================== UI interactions =================== */
+pauseBtn.addEventListener('click', ()=>{
+  game.paused = !game.paused;
+  pauseBtn.textContent = game.paused ? 'Resume' : 'Pause';
+});
+restartBtn.addEventListener('click', ()=>{ resetGame(true); });
+
+/* ===== Name saving logic (locked after saved) ===== */
+const STORAGE_KEY = 'notcoins_player';
+function getStoredName(){ return localStorage.getItem(STORAGE_KEY); }
+function setStoredName(name){
+  try {
+    localStorage.setItem(STORAGE_KEY, name);
+    return true;
+  } catch(e) {
+    console.warn('localStorage failed', e);
+    return false;
+  }
+}
+
+function lockNameUI(name){
+  playerNameInput.value = name;
+  playerNameInput.disabled = true;
+  saveNameBtn.disabled = true;
+  nameHelp.textContent = "Name is saved and locked. To change it you must clear localStorage for this site.";
+}
+
+saveNameBtn.addEventListener('click', ()=>{
+  const val = playerNameInput.value.trim();
+  if(!val || val.length < 2){ nameHelp.textContent = "Please enter at least 2 characters."; return; }
+  // save and lock
+  if(setStoredName(val)){
+    lockNameUI(val);
+    leaderboardMsg('Name saved. Ready to submit scores.');
+    // optimistic fetch leaderboard
+    fetchAndRenderLeaderboard();
+  } else {
+    nameHelp.textContent = "Failed to save name locally (localStorage issue).";
+  }
+});
+
+// On load, check stored
+const existingName = getStoredName();
+if(existingName){ lockNameUI(existingName); } else {
+  nameHelp.textContent = "Enter your player name once — it will be saved locally and cannot be changed.";
+}
+
+/* =================== Leaderboard API integration =================== */
+function leaderboardMsg(text){
+  networkMsg.textContent = text || '';
+}
+
+async function fetchLeaderboard(all=false){
+  // GET request to API
+  try {
+    networkMsg.textContent = 'Fetching leaderboard...';
+    const res = await fetch(API_BASE, { method: 'GET' });
+    if(!res.ok) throw new Error('Network response not ok');
+    const data = await res.json();
+    // data expected format: array of { id, name, score }
+    // sort descending
+    data.sort((a,b)=> Number(b.score) - Number(a.score));
+    networkMsg.textContent = '';
+    return data;
+  } catch(e) {
+    console.error(e);
+    networkMsg.textContent = 'Unable to fetch leaderboard (network).';
+    throw e;
+  }
+}
+
+async function fetchAndRenderLeaderboard(all=false){
+  leaderboardEl.innerHTML = '<div class="msg">Loading leaderboard…</div>';
+  try {
+    const data = await fetchLeaderboard(all);
+    renderLeaderboard(data, all);
+  } catch(e) {
+    leaderboardEl.innerHTML = '<div class="msg">Unable to load leaderboard.</div>';
+  }
+}
+
+function renderLeaderboard(data, all=false){
+  leaderboardEl.innerHTML = '';
+  if(!data || data.length===0){
+    leaderboardEl.innerHTML = '<div class="msg">No scores yet — be the first!</div>';
+    return;
+  }
+  const slice = all ? data : data.slice(0, MAX_LEAD_DISPLAY);
+  for(const item of slice){
+    const row = document.createElement('div');
+    row.className = 'lead-item';
+    row.innerHTML = \`
+      <div style="display:flex;flex-direction:column;">
+        <div class="name">\${escapeHtml(item.name || '—')}</div>
+        <div class="small">id: \${item.id}</div>
+      </div>
+      <div class="score">\${Number(item.score)}</div>
+    \`;
+    leaderboardEl.appendChild(row);
+  }
+}
+
+/* Escape HTML to avoid injection into leaderboard names */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+}
+
+/* Submit score: checks if player exists (by name) -> PUT to update or POST to create.
+   Behavior: If existing score < new score, update. Otherwise, if new score is higher, update.
+*/
+async function submitScoreForPlayer(score){
+  const name = getStoredName();
+  if(!name) {
+    leaderboardMsg('No player name saved — enter it to submit scores.');
+    return;
+  }
+
+  // fetch all, find by name
+  const listRes = await fetch(API_BASE);
+  if(!listRes.ok) throw new Error('Failed to fetch player list');
+  const list = await listRes.json();
+  const found = list.find(p => p.name && p.name.toLowerCase() === name.toLowerCase());
+  if(found){
+    // update score if higher
+    const existingScore = Number(found.score) || 0;
+    const newScore = Math.max(existingScore, Number(score));
+    // always send the greater one, but you requested "update their score" so we set to the new one if higher
+    const payload = { name: name, score: newScore };
+    const putRes = await fetch(\`\${API_BASE}/\${encodeURIComponent(found.id)}\`, {
+      method: 'PUT',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if(!putRes.ok) throw new Error('Failed to update player score');
+    return await putRes.json();
+  } else {
+    // create new
+    const payload = { name: name, score: Number(score) };
+    const postRes = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if(!postRes.ok) throw new Error('Failed to create new player');
+    return await postRes.json();
+  }
+}
+
+/* Buttons */
+refreshBtn.addEventListener('click', ()=> fetchAndRenderLeaderboard(false));
+showAllBtn.addEventListener('click', async ()=>{
+  // toggle: if currently showing all, revert to top 10
+  const showingAll = showAllBtn.dataset.all === '1';
+  if(showingAll){
+    showAllBtn.textContent = 'Show All';
+    showAllBtn.dataset.all = '0';
+    fetchAndRenderLeaderboard(false);
+  } else {
+    showAllBtn.textContent = 'Show Top 50';
+    showAllBtn.dataset.all = '1';
+    fetchAndRenderLeaderboard(true);
+  }
+});
+
+/* Submit score when game ends or when user clicks (also allow manual submit) */
+window.addEventListener('beforeunload', ()=>{
+  // submit best effort (don't await)
+  if(!getStoredName()) return;
+  if(game.score > 0){
+    navigator.sendBeacon && sendBeaconScore(game.score);
+  }
+});
+
+async function sendBeaconScore(score){
+  const name = getStoredName();
+  if(!name) return;
+  try {
+    // simple best-effort endpoint call via fetch
+    await submitScoreForPlayer(score);
+  } catch(e){}
+}
+
+/* initial leaderboard load */
+fetchAndRenderLeaderboard(false);
+
+/* For demo: when lives hit 0, gameOver handles submission. Also allow cheat key 'p' to add points */
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'p') { game.score += 5; updateHUD(); }
+  if(e.key === 'o') { game.lives = Math.max(0, game.lives - 1); updateHUD(); if(game.lives <= 0) gameOver(); }
+});
+
+/* Very simple automatic score submit button (exposed for debugging) */
+const autoSubmit = false;
+if(autoSubmit){
+  setInterval(()=> {
+    if(!game.running) return;
+    // auto submit current top score every 20s
+    submitScoreForPlayer(game.score).catch(()=>{});
+  }, 20000);
+}
+
+</script>
+</body>
+</html>
